@@ -23,7 +23,7 @@ func init() {
 }
 
 func genArr(size int) *[]string {
-	r := []string{}
+	r := make([]string, size+2)
 	for i := 0; i < size+2; i++ {
 		e := "|"
 		b := " "
@@ -31,9 +31,8 @@ func genArr(size int) *[]string {
 			e = "+"
 			b = "-"
 		}
-		r = append(r, fmt.Sprintf("%[1]s%s%[1]s", e, strings.Repeat(b, (size*2))))
+		r[i] = fmt.Sprintf("%[1]s%s%[1]s", e, strings.Repeat(b, (size*2)))
 	}
-
 	return &r
 }
 
