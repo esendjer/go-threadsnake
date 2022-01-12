@@ -5,10 +5,10 @@ import (
 	"log"
 	"math/rand"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 
+	flags "github.com/jessevdk/go-flags"
 	tty "github.com/mattn/go-tty"
 )
 
@@ -18,10 +18,31 @@ const (
 	head = "@"
 )
 
-func init() {
-	rand.Seed(int64(time.Now().UnixNano()))
+var version = "v0.1"
+
+var options struct {
+	Version bool `short:"v" long:"version" description:"Show version\n"`
+	Size    int  `short:"s" long:"size" description:"Set the size of playing field, from 5 to 40\n default value = 10, means 10 rows and (10 * 2 =) 20 columns\n"`
+	Tempo   int  `short:"t" long:"tempo" description:"Set the tempo of moving the snake, from 1 to 20\n default value = 2, means (60 sec / 2 =) 30 sec for a step\n"`
 }
 
+func init() {
+	rand.Seed(int64(time.Now().UnixNano()))
+	_, err := flags.Parse(&options)
+	if err != nil {
+		e, _ := err.(*flags.Error)
+		if e.Type != flags.ErrHelp {
+			os.Exit(1)
+		}
+		os.Exit(0)
+	}
+	if options.Version {
+		fmt.Printf("go-threadsnake version: %s\n", version)
+		os.Exit(0)
+	}
+}
+
+// function to generate playing field
 func genArr(size int) *[]string {
 	r := make([]string, size+2)
 	r[0] = fmt.Sprintf("+%s+", strings.Repeat("-", (size*2)))
@@ -33,6 +54,7 @@ func genArr(size int) *[]string {
 	return &r
 }
 
+// function to generate the position of a fruit
 func frug(a *[]string) []int {
 	return []int{rand.Intn(len((*a)[0])-2) + 1, rand.Intn(len((*a))-2) + 1}
 }
@@ -40,17 +62,6 @@ func frug(a *[]string) []int {
 func cleanScreen() {
 	fmt.Print("\033[H\033[2J")
 	fmt.Print("\033[0;0H")
-}
-
-func printHelp() {
-	fmt.Println(`Using: go-threadsnake [1st arg] [2nd arg]
-
-Where:
-	1st arg - Size of playing field, is a number from 5 to 40
-	          default value = 10, means 10 rows and (10 * 2 =) 20 columns
-
-	2nd arg - Speed of moving the snake, is a number from 1 to 20
-	          default value = 2, means (60 sec / 2 =) 30 sec for a step`)
 }
 
 func sayHello() {
@@ -68,47 +79,34 @@ func sayHello() {
 }
 
 func main() {
-	as := 10
+	pfs := 10 // playing field size
 	speed := time.Second / 2
 
-	// Checking input args and applaing new values for as and speed
-	if len(os.Args) > 1 {
-		if os.Args[1] == "-h" || os.Args[1] == "--help" {
-			printHelp()
-			return
-		}
-		a, err := strconv.Atoi(os.Args[1])
-		if err == nil && a >= 5 && a <= 40 {
-			as = a
-		}
-		if len(os.Args) == 3 {
-			b, err := strconv.Atoi(os.Args[2])
-			if err == nil && b >= 1 && b <= 20 {
-				speed = time.Second / time.Duration(b)
-			}
-		}
+	// Checking input args and applaing new values for pfs and speed
+	if s := options.Size; s >= 5 && s <= 40 {
+		pfs = s
+	}
+	if t := options.Tempo; t >= 1 && t <= 20 {
+		speed = time.Second / time.Duration(t)
 	}
 
-	arr := genArr(as)
+	arr := genArr(pfs) // playing field
 	sec := 0
 	scor := 0
-	pos := [][]int{
+	pos := [][]int{ // snake
 		{3, 1}, // Head
 		{2, 1}, // Body
 		{1, 1}, // Tail
 	}
-	fru := frug(arr)
-	dir := "d"
-	// Direction could be:
+	fru := frug(arr) // fruit
+	dir := "d"       // direction could be:
 	// w - UP
 	// s - DOWN
 	// a - LEFT
 	// d - RIGHT
 
+	// channel for direction
 	ch := make(chan string)
-
-	// Print playing field
-	fmt.Println((*arr))
 
 	// Reading pressed keys
 	tty, err := tty.Open()
@@ -132,7 +130,7 @@ func main() {
 	for {
 		cleanScreen()
 
-		// Checking pressed keys
+		// checking pressed keys and set new direction
 		select {
 		case k := <-ch:
 			if dir == "d" && (k == "s" || k == "w") {
@@ -150,7 +148,7 @@ func main() {
 		default:
 			pe := pos[:len(pos)-1]
 
-			// Drawing fruit
+			// drawing fruit
 			if pos[0][0] == fru[0] && pos[0][1] == fru[1] {
 				scor++
 				fc := true
@@ -168,7 +166,7 @@ func main() {
 				pe = pos
 			}
 
-			// Moving snake
+			// moving snake
 			if dir == "d" {
 				pos = append([][]int{{pos[0][0] + 1, pos[0][1]}}, pe...)
 			}
@@ -190,7 +188,7 @@ func main() {
 				return false
 			}()
 
-			// Checking WIN or LOSS
+			// checking WIN or LOSS
 			if pos[0][0] < 1 || pos[0][1] < 1 || pos[0][0] > len((*arr)[0])-2 || pos[0][1] > len((*arr))-2 || cros {
 				fmt.Printf("Game over! Your score is %d!\n", scor)
 				return
@@ -200,7 +198,7 @@ func main() {
 				return
 			}
 
-			// Drawing playing field and snake
+			// drawing playing field and snake
 			for i, v := range *arr {
 				str := v
 				if fru[1] == i {
@@ -219,10 +217,10 @@ func main() {
 					}
 
 				}
-				// Printing playing field and snake by line
+				// printing playing field and snake by line
 				fmt.Println(str)
 			}
-			// Printing statistics
+			// printing statistics
 			fmt.Printf("Steps: %d\n", sec)
 			fmt.Printf("Score: %d\n", scor)
 
