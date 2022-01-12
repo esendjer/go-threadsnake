@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mattn/go-tty"
+	tty "github.com/mattn/go-tty"
 )
 
 const (
@@ -24,14 +24,11 @@ func init() {
 
 func genArr(size int) *[]string {
 	r := make([]string, size+2)
-	for i := 0; i < size+2; i++ {
-		e := "|"
-		b := " "
-		if i == 0 || i == (size+1) {
-			e = "+"
-			b = "-"
-		}
-		r[i] = fmt.Sprintf("%[1]s%s%[1]s", e, strings.Repeat(b, (size*2)))
+	r[0] = fmt.Sprintf("+%s+", strings.Repeat("-", (size*2)))
+	r[size+1] = r[0]
+	r[1] = fmt.Sprintf("|%s|", strings.Repeat(" ", (size*2)))
+	for i := 2; i < size+1; i++ {
+		r[i] = r[1]
 	}
 	return &r
 }
