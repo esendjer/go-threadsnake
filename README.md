@@ -31,8 +31,19 @@ a - LEFT
 d - RIGHT
 ```
 
+
 ## How does it look like
 
 There are a few screenshoots of games
 
 ![Game with the default settings](img/game-default.png) ![Game with custom settings](img/game-custom.png)
+
+## What next
+
+The list of features for the next releases looks so:
+- [ ] (Bug) sometimes fruit can spawn on a snake body
+- [ ] Start playing by Enter
+- [ ] Pause
+- [ ] A special separated button to quit
+- [ ] Homebrew Tap
+- [ ] Save and recovery progress
