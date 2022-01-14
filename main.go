@@ -2,14 +2,17 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
 	"log"
 	"math/rand"
 	"os"
+	"reflect"
 	"strings"
 	"time"
 
 	flags "github.com/jessevdk/go-flags"
 	tty "github.com/mattn/go-tty"
+	yaml "gopkg.in/yaml.v2"
 )
 
 const (
@@ -21,13 +24,15 @@ const (
 var version = "v0.1"
 
 var options struct {
-	Version bool `short:"v" long:"version" description:"Show version\n"`
-	Size    int  `short:"s" long:"size" description:"Set the size of playing field, from 5 to 40\n default value = 10, means 10 rows and (10 * 2 =) 20 columns\n"`
-	Tempo   int  `short:"t" long:"tempo" description:"Set the tempo of moving the snake, from 1 to 20\n default value = 2, means (60 sec / 2 =) 30 sec for a step\n"`
+	Version   bool `short:"v" long:"version" description:"Show version\n"`
+	Size      int  `short:"s" long:"size" description:"Set the size of playing field, from 5 to 40\n default value = 10, means 10 rows and (10 * 2 =) 20 columns\n"`
+	Tempo     int  `short:"t" long:"tempo" description:"Set the tempo of moving the snake, from 1 to 20\n default value = 2, means (60 sec / 2 =) 30 sec for a step\n"`
+	LoadState bool `short:"l" long:"load-state" description:"Load the last saved game state"`
 }
 
 func init() {
 	rand.Seed(int64(time.Now().UnixNano()))
+
 	_, err := flags.Parse(&options)
 	if err != nil {
 		e, _ := err.(*flags.Error)
@@ -36,6 +41,7 @@ func init() {
 		}
 		os.Exit(0)
 	}
+
 	if options.Version {
 		fmt.Printf("go-threadsnake version: %s\n", version)
 		os.Exit(0)
@@ -78,9 +84,81 @@ func sayHello() {
 	Good luck!`)
 }
 
+// load the last saved game state
+func loderState() ([]int, *[]string, time.Duration, string, int, int, [][]int, error) {
+	spv := time.Second
+	f, err := os.Open("state.yml")
+	if err != nil {
+		return nil, nil, spv, "", 0, 0, nil, err
+	}
+	defer f.Close()
+
+	b, err := ioutil.ReadAll(f)
+	if err != nil {
+		return nil, nil, spv, "", 0, 0, nil, err
+	}
+
+	m := make(map[interface{}]interface{})
+	err = yaml.Unmarshal([]byte(b), &m)
+	if err != nil {
+		return nil, nil, spv, "", 0, 0, nil, err
+	}
+
+	rfo := reflect.ValueOf(m["fru"])
+	ld := make([]int, rfo.Len())
+	for is := 0; is < rfo.Len(); is++ {
+		ld[is] = rfo.Index(is).Interface().(int)
+	}
+
+	rfo = reflect.ValueOf(m["arr"])
+	pf := make([]string, rfo.Len())
+	for is := 0; is < rfo.Len(); is++ {
+		pf[is] = rfo.Index(is).Interface().(string)
+	}
+
+	rfo = reflect.ValueOf(m["speed"])
+	speed := time.Duration(rfo.Interface().(int))
+
+	rfo = reflect.ValueOf(m["dir"])
+	dir := rfo.Interface().(string)
+
+	rfo = reflect.ValueOf(m["sec"])
+	sec := rfo.Interface().(int)
+
+	rfo = reflect.ValueOf(m["scor"])
+	scor := rfo.Interface().(int)
+
+	rfo = reflect.ValueOf(m["pos"])
+	pos := make([][]int, rfo.Len())
+	for is := 0; is < rfo.Len(); is++ {
+		ri := reflect.ValueOf(rfo.Index(is).Interface())
+		pos[is] = make([]int, 2)
+		pos[is][0] = ri.Index(0).Interface().(int)
+		pos[is][1] = ri.Index(1).Interface().(int)
+	}
+
+	return ld, &pf, speed, dir, sec, scor, pos, nil
+}
+
 func main() {
+	var arr *[]string
+	var fru []int
+
 	pfs := 10 // playing field size
 	speed := time.Second / 2
+	sec := 0
+	scor := 0
+	pos := [][]int{ // snake
+		{3, 1}, // Head
+		{2, 1}, // Body
+		{1, 1}, // Tail
+	}
+
+	dir := "d" // direction could be:
+	// w - UP
+	// s - DOWN
+	// a - LEFT
+	// d - RIGHT
 
 	// Checking input args and applaing new values for pfs and speed
 	if s := options.Size; s >= 5 && s <= 40 {
@@ -90,20 +168,19 @@ func main() {
 		speed = time.Second / time.Duration(t)
 	}
 
-	arr := genArr(pfs) // playing field
-	sec := 0
-	scor := 0
-	pos := [][]int{ // snake
-		{3, 1}, // Head
-		{2, 1}, // Body
-		{1, 1}, // Tail
+	// if !options.LoadState {
+	arr = genArr(pfs) // playing field
+	fru = frug(arr)   // fruit
+	// }
+
+	if options.LoadState {
+		var err error
+		fru, arr, speed, dir, sec, scor, pos, err = loderState()
+		if err != nil {
+			log.Println(err)
+			os.Exit(1)
+		}
 	}
-	fru := frug(arr) // fruit
-	dir := "d"       // direction could be:
-	// w - UP
-	// s - DOWN
-	// a - LEFT
-	// d - RIGHT
 
 	// channel for direction
 	ch := make(chan string)
