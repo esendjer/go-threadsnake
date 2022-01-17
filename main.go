@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -70,9 +71,9 @@ func cleanScreen() {
 	fmt.Print("\033[0;0H")
 }
 
-func sayHello() {
+func sayHello(inf string) {
 	cleanScreen()
-	fmt.Println(`
+	msg := `
 
 	Game will start in 3 sec!
 
@@ -81,55 +82,87 @@ func sayHello() {
 	a - LEFT
 	d - RIGHT
 
-	Good luck!`)
+	%s
+
+	Good luck!
+`
+	fmt.Printf(msg, inf)
 }
 
 // load the last saved game state
-func loderState() ([]int, *[]string, time.Duration, string, int, int, [][]int, error) {
-	spv := time.Second
+func loderState() (fru []int, arr *[]string, speed time.Duration, dir string, sec int, scor int, pos [][]int, err error) {
 	f, err := os.Open("state.yml")
 	if err != nil {
-		return nil, nil, spv, "", 0, 0, nil, err
+		return
 	}
 	defer f.Close()
 
 	b, err := ioutil.ReadAll(f)
 	if err != nil {
-		return nil, nil, spv, "", 0, 0, nil, err
+		return
 	}
 
 	m := make(map[interface{}]interface{})
 	err = yaml.Unmarshal([]byte(b), &m)
 	if err != nil {
-		return nil, nil, spv, "", 0, 0, nil, err
+		return
 	}
 
 	rfo := reflect.ValueOf(m["fru"])
-	ld := make([]int, rfo.Len())
+	if !rfo.IsValid() {
+		err = errors.New("state file is bad. Can't load \"fru\" option")
+		return
+	}
+	fru = make([]int, rfo.Len())
 	for is := 0; is < rfo.Len(); is++ {
-		ld[is] = rfo.Index(is).Interface().(int)
+		fru[is] = rfo.Index(is).Interface().(int)
 	}
 
 	rfo = reflect.ValueOf(m["arr"])
-	pf := make([]string, rfo.Len())
-	for is := 0; is < rfo.Len(); is++ {
-		pf[is] = rfo.Index(is).Interface().(string)
+	if !rfo.IsValid() {
+		err = errors.New("state file is bad. Can't load \"arr\" option")
+		return
 	}
+	parr := make([]string, rfo.Len())
+	for is := 0; is < rfo.Len(); is++ {
+		parr[is] = rfo.Index(is).Interface().(string)
+	}
+	arr = &parr
 
 	rfo = reflect.ValueOf(m["speed"])
-	speed := time.Duration(rfo.Interface().(int))
+	if !rfo.IsValid() {
+		err = errors.New("state file is bad. Can't load \"speed\" option")
+		return
+	}
+	speed = time.Duration(rfo.Interface().(int))
 
 	rfo = reflect.ValueOf(m["dir"])
-	dir := rfo.Interface().(string)
+	if !rfo.IsValid() {
+		err = errors.New("state file is bad. Can't load \"dir\" option")
+		return
+	}
+	dir = rfo.Interface().(string)
 
 	rfo = reflect.ValueOf(m["sec"])
-	sec := rfo.Interface().(int)
+	if !rfo.IsValid() {
+		err = errors.New("state file is bad. Can't load \"sec\" option")
+		return
+	}
+	sec = rfo.Interface().(int)
 
 	rfo = reflect.ValueOf(m["scor"])
-	scor := rfo.Interface().(int)
+	if !rfo.IsValid() {
+		err = errors.New("state file is bad. Can't load \"scor\" option")
+		return
+	}
+	scor = rfo.Interface().(int)
 
 	rfo = reflect.ValueOf(m["pos"])
-	pos := make([][]int, rfo.Len())
+	if !rfo.IsValid() {
+		err = errors.New("state file is bad. Can't load \"pos\" option")
+		return
+	}
+	pos = make([][]int, rfo.Len())
 	for is := 0; is < rfo.Len(); is++ {
 		ri := reflect.ValueOf(rfo.Index(is).Interface())
 		pos[is] = make([]int, 2)
@@ -137,16 +170,18 @@ func loderState() ([]int, *[]string, time.Duration, string, int, int, [][]int, e
 		pos[is][1] = ri.Index(1).Interface().(int)
 	}
 
-	return ld, &pf, speed, dir, sec, scor, pos, nil
+	return
 }
 
 func main() {
 	var arr *[]string
 	var fru []int
+	var info string
 
 	pfs := 10 // playing field size
 	speed := time.Second / 2
 	sec := 0
+
 	scor := 0
 	pos := [][]int{ // snake
 		{3, 1}, // Head
@@ -174,12 +209,20 @@ func main() {
 	// }
 
 	if options.LoadState {
-		var err error
-		fru, arr, speed, dir, sec, scor, pos, err = loderState()
+		info = "Loaded state"
+		fruT, arrT, speedT, dirT, secT, scorT, posT, err := loderState()
 		if err != nil {
-			log.Println(err)
-			os.Exit(1)
+			info = fmt.Sprintf("Will Use default settings because: %v\n", err)
+			goto done
 		}
+		fru = fruT
+		arr = arrT
+		speed = speedT
+		dir = dirT
+		sec = secT
+		scor = scorT
+		pos = posT
+	done:
 	}
 
 	// channel for direction
@@ -201,7 +244,7 @@ func main() {
 		}
 	}()
 
-	sayHello()
+	sayHello(info)
 	time.Sleep(time.Second * 3)
 
 	for {

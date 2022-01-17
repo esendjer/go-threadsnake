@@ -1,3 +1,5 @@
 game*
 !game-*
 go-threadsnake*
+main
+state.yml
